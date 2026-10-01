@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="hy">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stars Media Admin</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{color-scheme:dark;--bg:#070a0f;--card:#111720;--border:#273343;--text:#f2f5f7;--muted:#94a3b8;--green:#19d37b;--red:#ef5350}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,sans-serif}.wrap{max-width:1000px;margin:auto;padding:18px}header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}h1{font-size:25px;margin:8px 0}.card{background:var(--card);border:1px solid var(--border);border-radius:17px;padding:18px;margin:14px 0}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.stat{background:#0b1118;border:1px solid var(--border);border-radius:13px;padding:14px}.stat b{font-size:23px}label{display:block;margin:8px 0 5px;color:var(--muted)}input,textarea,select{width:100%;padding:12px;border-radius:10px;border:1px solid #354253;background:#090f16;color:white;outline:none}button{border:0;border-radius:10px;padding:11px 15px;font-weight:700;cursor:pointer;background:var(--green);color:#04100a}button.danger{background:var(--red);color:white}.item{padding:14px 0;border-top:1px solid var(--border)}.muted{color:var(--muted)}.msg{margin-top:10px;color:#ffd166}@media(max-width:700px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><h1>👑 Stars Media Admin</h1><button onclick="loadAll()">↻ Թարմացնել</button></header>
+<div id="stats" class="grid">
+<div class="stat">👥 Օգտատերեր<br><b>—</b></div>
+<div class="stat">💰 Գնումներ<br><b>—</b></div>
+<div class="stat">⭐ Stars<br><b>—</b></div>
+</div>
+<div class="card">
+<h2>➕ Ավելացնել նյութ</h2>
+<form id="addForm">
+<label>Տեսակ</label>
+<select id="media_type"><option value="video">🎬 Վիդեո</option><option value="photo">🖼️ Նկար</option></select>
+<label>Telegram file_id</label><input id="file_id" required placeholder="Ուղարկիր /getid բոտին">
+<label>Վերնագիր</label><input id="title" required placeholder="Օրինակ՝ Video 01">
+<label>Նկարագրություն</label><textarea id="description" rows="4" placeholder="Նկարագրություն..."></textarea>
+<label>Գին՝ 0–10000 Stars</label><input id="price" type="number" min="0" max="10000" value="0" required>
+<button type="submit">➕ Ավելացնել</button><div id="msg" class="msg"></div>
+</form></div>
+<div class="card"><h2>📚 Նյութեր</h2><div id="media">Բեռնվում է...</div></div>
+</div>
+<script>
+const tg=window.Telegram.WebApp;tg.ready();tg.expand();
+function headers(){return{"Content-Type":"application/json","X-Telegram-Init-Data":tg.initData}}
+function escapeHtml(value){return String(value).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;")}
+async function loadAll(){
+const box=document.getElementById("media");
+try{
+const [mr,sr]=await Promise.all([fetch("/api/media",{headers:headers()}),fetch("/api/stats",{headers:headers()})]);
+if(mr.status===401||sr.status===401){box.innerHTML="<p>❌ Admin authorization failed.</p>";return}
+const media=await mr.json(),stats=await sr.json();
+document.getElementById("stats").innerHTML=`<div class="stat">👥 Օգտատերեր<br><b>${stats.users}</b></div><div class="stat">💰 Գնումներ<br><b>${stats.purchases}</b></div><div class="stat">⭐ Stars<br><b>${stats.stars}</b></div>`;
+if(!media.length){box.innerHTML="<p class='muted'>Դեռ նյութ չկա։</p>";return}
+box.innerHTML=media.map(m=>`<div class="item"><b>${m.media_type==="video"?"🎬":"🖼️"} ${escapeHtml(m.title)}</b><div class="muted">ID: ${m.id} · ${m.price===0?"🆓 Անվճար":"⭐ "+m.price+" Stars"}</div><p>${escapeHtml(m.description||"")}</p><button class="danger" onclick="deleteMedia(${m.id})">🗑️ Ջնջել</button></div>`).join("");
+}catch(e){box.innerHTML="<p>❌ Սերվերի սխալ։</p>"}}
+async function deleteMedia(id){if(!confirm("Ջնջե՞լ այս նյութը։"))return;const res=await fetch("/api/media/"+id,{method:"DELETE",headers:headers()});if(res.ok)loadAll();else alert("Չհաջողվեց ջնջել։")}
+document.getElementById("addForm").addEventListener("submit",async e=>{e.preventDefault();const payload={media_type:document.getElementById("media_type").value,file_id:document.getElementById("file_id").value.trim(),title:document.getElementById("title").value.trim(),description:document.getElementById("description").value.trim(),price:Number(document.getElementById("price").value)};const res=await fetch("/api/media",{method:"POST",headers:headers(),body:JSON.stringify(payload)});const data=await res.json();if(!res.ok){document.getElementById("msg").textContent="❌ "+(data.error||"Սխալ");return}document.getElementById("msg").textContent="✅ Ավելացվեց։";e.target.reset();document.getElementById("price").value=0;loadAll()});
+loadAll();
+</script>
+</body>
+</html>
